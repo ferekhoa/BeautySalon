@@ -97,8 +97,9 @@ body {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
   /* soft dropdown shadow */
   overflow: hidden;
-  font-family: inherit;
+  background: #fff;
 }
+
 
 /* remove the little triangle */
 .react-datepicker__triangle {

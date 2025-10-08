@@ -1,3 +1,4 @@
+// src/pages/Book.jsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import SlotGrid from '../components/SlotGrid';
@@ -328,21 +329,16 @@ export default function Book() {
                 dateFormat="yyyy-MM-dd"
                 placeholderText="YYYY-MM-DD"
 
-                /* ✅ styling & behavior */
+                /* keep styling */
                 className="w-full mb-2 border rounded-xl px-3 py-2 text-left bg-white hover:bg-gray-50"
                 calendarClassName="dp-panel"
                 dayClassName={() => "dp-day"}
                 popperClassName="dp-popper"
                 popperPlacement="bottom-start"
-                popperModifiers={[
-                    { name: 'offset', options: { offset: [0, 8] } },
-                    { name: 'preventOverflow', options: { rootBoundary: 'viewport' } },
-                ]}
-                shouldCloseOnSelect
                 showPopperArrow={false}
 
-                /* Optional: on small screens, show as full-screen portal */
-                withPortal={window.innerWidth < 640}
+                /* portal only on small screens */
+                withPortal={window.matchMedia('(max-width: 640px)').matches}
             />
             {closedNote && <div className="text-xs text-amber-700 mb-2">{closedNote}</div>}
 

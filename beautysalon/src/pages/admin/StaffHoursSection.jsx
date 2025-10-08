@@ -1,5 +1,7 @@
+// src/pages/admin/StaffHoursSection.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import ConfirmModal from '../../components/ConfirmModal';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -7,6 +9,7 @@ export default function StaffHoursSection() {
     const [staff, setStaff] = useState([]);
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [delHours, setDelHours] = useState({ open: false, id: null, label: '' });
 
     // NEW: allow selecting multiple days
     const [form, setForm] = useState({
@@ -51,10 +54,11 @@ export default function StaffHoursSection() {
         if (error) alert(error.message); else load();
     }
 
-    async function remove(id) {
-        if (!confirm('Delete this hours row?')) return;
-        const { error } = await supabase.from('staff_hours').delete().eq('id', id);
-        if (error) alert(error.message); else load();
+    function remove(id) {
+        const row = rows.find(r => r.id === id);
+        const staffName = staff.find(s => s.id === row?.staff_id)?.full_name || '—';
+        const label = `${staffName} • ${WEEKDAYS[row.weekday]} ${row.start_time}–${row.end_time}`;
+        setDelHours({ open: true, id, label });
     }
 
     return (
@@ -119,7 +123,7 @@ export default function StaffHoursSection() {
                                     <td className="py-2 pr-3">{r.start_time}</td>
                                     <td className="py-2 pr-3">{r.end_time}</td>
                                     <td className="py-2 pr-3 text-right">
-                                        <button className="btn" onClick={() => remove(r.id)}>Delete</button>
+                                        <button type="button" className="btn" onClick={() => remove(r.id)}>Delete</button>
                                     </td>
                                 </tr>
                             ))}
@@ -127,6 +131,20 @@ export default function StaffHoursSection() {
                     </table>
                 </div>
             )}
+            <ConfirmModal
+                open={delHours.open}
+                onClose={() => setDelHours({ open: false, id: null, label: '' })}
+                onConfirm={async () => {
+                    const { error } = await supabase.from('staff_hours').delete().eq('id', delHours.id);
+                    setDelHours({ open: false, id: null, label: '' });
+                    if (error) alert(error.message); else load();
+                }}
+                title="Delete hours row?"
+                confirmText="Delete"
+                destructive
+            >
+                <p>Remove this hours entry?<br /><span className="font-medium">{delHours.label}</span></p>
+            </ConfirmModal>
         </section>
     );
 }

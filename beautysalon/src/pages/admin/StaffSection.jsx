@@ -1,11 +1,13 @@
+// src/pages/admin/StaffSection.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
-
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function StaffSection() {
     const [rows, setRows] = useState([]);
     const [loading, setLoading] = useState(true);
     const [name, setName] = useState('');
+    const [delStaff, setDelStaff] = useState({ open: false, id: null, name: '' });
 
 
     async function load() {
@@ -48,14 +50,32 @@ export default function StaffSection() {
             {loading && <div>Loading…</div>}
             {!loading && (
                 <div className="grid gap-3">
-                    {rows.map(r => <Row key={r.id} row={r} onSave={save} onDelete={remove} />)}
+                    {rows.map(r => <Row key={r.id} row={r} onSave={save} onDeleteOpen={setDelStaff} />)}
                 </div>
             )}
+
+            <ConfirmModal
+                open={delStaff.open}
+                onClose={() => setDelStaff({ open: false, id: null, name: '' })}
+                onConfirm={async () => {
+                    const { error } = await supabase.from('staff').delete().eq('id', delStaff.id);
+                    setDelStaff({ open: false, id: null, name: '' });
+                    if (error) alert(error.message); else load();
+                }}
+                title="Delete staff member?"
+                confirmText="Delete"
+                destructive
+            >
+                <p>
+                    You’re about to delete <span className="font-medium">{delStaff.name}</span>.
+                    Their hours and future appointments may be affected.
+                </p>
+            </ConfirmModal>
         </section>
     );
 }
 
-function Row({ row, onSave, onDelete }) {
+function Row({ row, onSave, onDeleteOpen }) {
     const [e, setE] = useState(row);
     return (
         <div className="card flex items-center justify-between gap-3">
@@ -66,8 +86,14 @@ function Row({ row, onSave, onDelete }) {
                 </label>
             </div>
             <div className="flex gap-2">
-                <button className="btn" onClick={() => onSave(e)}>Save</button>
-                <button className="btn" onClick={() => onDelete(e.id)}>Delete</button>
+                <button type="button" className="btn" onClick={() => onSave(e)}>Save</button>
+                <button
+                    type="button"
+                    className="btn"
+                    onClick={() => onDeleteOpen({ open: true, id: e.id, name: e.full_name })}
+                >
+                    Delete
+                </button>
             </div>
         </div>
     );

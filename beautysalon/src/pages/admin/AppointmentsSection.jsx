@@ -1,3 +1,4 @@
+// src/pages/admin/AppointmentsSection.jsx
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -35,6 +36,8 @@ export default function AppointmentsSection() {
         return (tbl.find(x => x.id === id)?.name) || (tbl.find(x => x.id === id)?.full_name) || '—';
     }
 
+    // Update status; when set to "cancelled", the booking UI frees the slot
+    // (Book.jsx already excludes cancelled items when calculating overlaps).
     async function setRowStatus(row, newStatus) {
         const { error } = await supabase.from('appointments').update({ status: newStatus }).eq('id', row.id);
         if (error) { alert(error.message); return; }
@@ -49,12 +52,6 @@ export default function AppointmentsSection() {
         } finally {
             load();
         }
-    }
-
-    async function remove(id) {
-        if (!confirm('Delete this appointment?')) return;
-        const { error } = await supabase.from('appointments').delete().eq('id', id);
-        if (error) alert(error.message); else load();
     }
 
     return (
@@ -88,7 +85,6 @@ export default function AppointmentsSection() {
                                 staff={staff}
                                 services={services}
                                 onChangeStatus={setRowStatus}
-                                onDelete={remove}
                             />
                         ))}
                         {!filtered.length && (
@@ -96,7 +92,7 @@ export default function AppointmentsSection() {
                         )}
                     </div>
 
-                    {/* Desktop table (unchanged layout) */}
+                    {/* Desktop table */}
                     <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
@@ -107,7 +103,6 @@ export default function AppointmentsSection() {
                                     <th className="py-2 pr-3">Customer</th>
                                     <th className="py-2 pr-3">Status</th>
                                     <th className="py-2 pr-3">Remarks</th>
-                                    <th className="py-2 pr-3"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -132,9 +127,6 @@ export default function AppointmentsSection() {
                                             </select>
                                         </td>
                                         <td className="py-2 pr-3">{r.remarks || ''}</td>
-                                        <td className="py-2 pr-3 text-right">
-                                            <button className="btn" onClick={() => remove(r.id)}>Delete</button>
-                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -146,8 +138,8 @@ export default function AppointmentsSection() {
     );
 }
 
-/** Mobile card component */
-function AppointmentCardMobile({ row, staff, services, onChangeStatus, onDelete }) {
+/** Mobile card component (no Delete button) */
+function AppointmentCardMobile({ row, staff, services, onChangeStatus }) {
     const when =
         `${new Date(row.starts_at).toLocaleDateString()} • ` +
         `${new Date(row.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–` +
@@ -163,7 +155,6 @@ function AppointmentCardMobile({ row, staff, services, onChangeStatus, onDelete 
                     <div className="font-medium">{when}</div>
                     <div className="text-xs text-gray-600">{staffName}</div>
                 </div>
-                <button className="btn" onClick={() => onDelete(row.id)}>Delete</button>
             </div>
 
             <div className="mt-2 text-sm">

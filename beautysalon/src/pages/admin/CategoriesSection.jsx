@@ -1,5 +1,7 @@
+// src/pages/admin/CategoriesSection.jsx
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import ConfirmModal from '../../components/ConfirmModal';
 
 export default function CategoriesSection() {
     const [rows, setRows] = useState([]);
@@ -10,12 +12,12 @@ export default function CategoriesSection() {
     const [editingId, setEditingId] = useState(null);
     const [editValue, setEditValue] = useState('');
 
+    // delete modal
+    const [delCat, setDelCat] = useState({ open: false, id: null, name: '' });
+
     async function load() {
         setLoading(true);
-        const { data, error } = await supabase
-            .from('service_categories')
-            .select('id,name')
-            .order('name');
+        const { data, error } = await supabase.from('service_categories').select('id,name').order('name');
         if (!error) setRows(data || []);
         setLoading(false);
     }
@@ -24,30 +26,13 @@ export default function CategoriesSection() {
     async function add(e) {
         e.preventDefault();
         if (!name.trim()) return;
-        const { error } = await supabase
-            .from('service_categories')
-            .insert({ name: name.trim() });
-        if (error) alert(error.message);
-        else { setName(''); load(); }
+        const { error } = await supabase.from('service_categories').insert({ name: name.trim() });
+        if (error) alert(error.message); else { setName(''); load(); }
     }
 
     async function rename(id, newName) {
-        const { error } = await supabase
-            .from('service_categories')
-            .update({ name: newName })
-            .eq('id', id);
-        if (error) alert(error.message);
-        else load();
-    }
-
-    async function remove(id) {
-        if (!confirm('Delete this category? All services inside will be deleted.')) return;
-        const { error } = await supabase
-            .from('service_categories')
-            .delete()
-            .eq('id', id);
-        if (error) alert(error.message);
-        else load();
+        const { error } = await supabase.from('service_categories').update({ name: newName }).eq('id', id);
+        if (error) alert(error.message); else load();
     }
 
     function startEdit(row) {
@@ -63,6 +48,11 @@ export default function CategoriesSection() {
         if (!v) return alert('Name is required');
         await rename(id, v);
         cancelEdit();
+    }
+
+    // 🟢 open styled modal instead of window.confirm
+    function askDelete(id, name) {
+        setDelCat({ open: true, id, name });
     }
 
     return (
@@ -102,19 +92,17 @@ export default function CategoriesSection() {
                                 <div className="inline-flex gap-2">
                                     {isEditing ? (
                                         <>
-                                            <button className="btn" onClick={cancelEdit} type="button">
-                                                Cancel
-                                            </button>
-                                            <button className="btn btn-primary" onClick={() => saveEdit(r.id)} type="button">
-                                                Save
-                                            </button>
+                                            <button type="button" className="btn" onClick={cancelEdit}>Cancel</button>
+                                            <button type="button" className="btn btn-primary" onClick={() => saveEdit(r.id)}>Save</button>
                                         </>
                                     ) : (
                                         <>
-                                            <button className="btn" onClick={() => startEdit(r)} type="button">
-                                                Edit
-                                            </button>
-                                            <button className="btn" onClick={() => remove(r.id)} type="button">
+                                            <button type="button" className="btn" onClick={() => startEdit(r)}>Edit</button>
+                                            <button
+                                                type="button"
+                                                className="btn"
+                                                onClick={() => askDelete(r.id, r.name)}
+                                            >
                                                 Delete
                                             </button>
                                         </>
@@ -125,6 +113,25 @@ export default function CategoriesSection() {
                     })}
                 </div>
             )}
+
+            {/* ✅ Styled confirm modal — must be inside the component's return */}
+            <ConfirmModal
+                open={delCat.open}
+                onClose={() => setDelCat({ open: false, id: null, name: '' })}
+                onConfirm={async () => {
+                    const { error } = await supabase.from('service_categories').delete().eq('id', delCat.id);
+                    setDelCat({ open: false, id: null, name: '' });
+                    if (error) alert(error.message); else load();
+                }}
+                title="Delete category?"
+                confirmText="Delete"
+                destructive
+            >
+                <p>
+                    You’re about to delete category <span className="font-medium">{delCat.name}</span>.
+                    Services linked to it may be orphaned or removed depending on your DB rules.
+                </p>
+            </ConfirmModal>
         </section>
     );
 }
