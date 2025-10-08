@@ -102,25 +102,44 @@ export default function ServicesSection() {
 
             {loading && <div>Loading…</div>}
             {!loading && (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="text-left border-b">
-                                <th className="py-2 pr-3">Name</th>
-                                <th className="py-2 pr-3">Category</th>
-                                <th className="py-2 pr-3">Duration</th>
-                                <th className="py-2 pr-3">Price</th>
-                                <th className="py-2 pr-3">Active</th>
-                                <th className="py-2 pr-3"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map(r => (
-                                <EditableRow key={r.id} row={r} cats={cats} onSave={save} onDelete={remove} />
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                <>
+                    {/* ✅ Mobile cards */}
+                    <div className="md:hidden grid gap-3">
+                        {filtered.map(r => (
+                            <EditableCardMobile
+                                key={r.id}
+                                row={r}
+                                cats={cats}
+                                onSave={save}
+                                onDelete={remove}
+                            />
+                        ))}
+                        {!filtered.length && (
+                            <div className="text-sm text-gray-500 text-center py-6">No services.</div>
+                        )}
+                    </div>
+
+                    {/* ✅ Desktop table (unchanged) */}
+                    <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left border-b">
+                                    <th className="py-2 pr-3">Name</th>
+                                    <th className="py-2 pr-3">Category</th>
+                                    <th className="py-2 pr-3">Duration</th>
+                                    <th className="py-2 pr-3">Price</th>
+                                    <th className="py-2 pr-3">Active</th>
+                                    <th className="py-2 pr-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {filtered.map(r => (
+                                    <EditableRow key={r.id} row={r} cats={cats} onSave={save} onDelete={remove} />
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
             )}
 
             {/* STYLISH CONFIRM MODAL */}
@@ -175,5 +194,76 @@ function EditableRow({ row, cats, onSave, onDelete }) {
                 <button type="button" className="btn" onClick={() => onDelete(e.id)}>Delete</button>
             </td>
         </tr>
+    );
+}
+
+function EditableCardMobile({ row, cats, onSave, onDelete }) {
+    const [e, setE] = useState(row);
+    useEffect(() => setE(row), [row.id]);
+
+    return (
+        <div className="card">
+            {/* Name */}
+            <label className="block text-xs text-gray-600 mb-1">Name</label>
+            <input
+                className="border rounded-xl px-3 py-2 w-full mb-3"
+                value={e.name}
+                onChange={(ev) => setE({ ...e, name: ev.target.value })}
+            />
+
+            {/* Category */}
+            <label className="block text-xs text-gray-600 mb-1">Category</label>
+            <select
+                className="border rounded-xl px-3 py-2 w-full mb-3"
+                value={e.category_id}
+                onChange={(ev) => setE({ ...e, category_id: ev.target.value })}
+            >
+                {cats.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+            </select>
+
+            {/* Duration & Price inline on mobile */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                    <label className="block text-xs text-gray-600 mb-1">Duration (min)</label>
+                    <input
+                        type="number"
+                        className="border rounded-xl px-3 py-2 w-full"
+                        value={e.duration_min}
+                        onChange={(ev) => setE({ ...e, duration_min: Number(ev.target.value) })}
+                    />
+                </div>
+                <div>
+                    <label className="block text-xs text-gray-600 mb-1">Price (cents)</label>
+                    <input
+                        type="number"
+                        className="border rounded-xl px-3 py-2 w-full"
+                        value={e.price_cents}
+                        onChange={(ev) => setE({ ...e, price_cents: Number(ev.target.value) })}
+                    />
+                </div>
+            </div>
+
+            {/* Active */}
+            <label className="inline-flex items-center gap-2 text-sm mb-4">
+                <input
+                    type="checkbox"
+                    checked={!!e.is_active}
+                    onChange={(ev) => setE({ ...e, is_active: ev.target.checked })}
+                />
+                Active
+            </label>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+                <button type="button" className="btn w-full" onClick={() => onDelete(e.id)}>
+                    Delete
+                </button>
+                <button type="button" className="btn btn-primary w-full" onClick={() => onSave(e)}>
+                    Save
+                </button>
+            </div>
+        </div>
     );
 }
