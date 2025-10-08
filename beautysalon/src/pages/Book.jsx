@@ -314,13 +314,12 @@ export default function Book() {
             <DatePicker
                 selected={date}
                 onChange={(d) => { setDate(d); setSlot(null); }}
-                minDate={new Date()}                // block past days
+                minDate={new Date()}
                 filterDate={(d) => {
-                    if (!chosenStaff) return false;   // don’t allow picking before staff
+                    if (!chosenStaff) return false;
                     const day = new Date(d); day.setHours(0, 0, 0, 0);
                     const today = new Date(); today.setHours(0, 0, 0, 0);
                     if (day < today) return false;
-                    // disable days specialist doesn’t work:
                     return openWeekdays.size ? openWeekdays.has(day.getDay()) : true;
                 }}
                 showMonthDropdown
@@ -328,11 +327,22 @@ export default function Book() {
                 dropdownMode="select"
                 dateFormat="yyyy-MM-dd"
                 placeholderText="YYYY-MM-DD"
-                customInput={<InputLike />}
-                calendarClassName="rdp-calendar"
-                dayClassName={(d) => "rdp-day"}     // Tailwind theming via CSS below
-                popperClassName="rdp-popper"
-                disabled={!chosenStaff}
+
+                /* ✅ styling & behavior */
+                className="w-full mb-2 border rounded-xl px-3 py-2 text-left bg-white hover:bg-gray-50"
+                calendarClassName="dp-panel"
+                dayClassName={() => "dp-day"}
+                popperClassName="dp-popper"
+                popperPlacement="bottom-start"
+                popperModifiers={[
+                    { name: 'offset', options: { offset: [0, 8] } },
+                    { name: 'preventOverflow', options: { rootBoundary: 'viewport' } },
+                ]}
+                shouldCloseOnSelect
+                showPopperArrow={false}
+
+                /* Optional: on small screens, show as full-screen portal */
+                withPortal={window.innerWidth < 640}
             />
             {closedNote && <div className="text-xs text-amber-700 mb-2">{closedNote}</div>}
 

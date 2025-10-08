@@ -29,18 +29,21 @@ export default function Admin() {
                 <button className="btn" onClick={signOut}>Sign out</button>
             </div>
 
-            {/* Navbar / Tabs */}
-            <div className="mb-6 overflow-x-auto">
-                <div className="inline-flex gap-2 border rounded-xl p-1 bg-white">
-                    {TABS.map(t => (
-                        <button
-                            key={t.key}
-                            onClick={() => setTab(t.key)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-black text-white' : 'hover:bg-gray-100'}`}
-                        >
-                            {t.label}
-                        </button>
-                    ))}
+            {/* Sticky, swipeable tabs */}
+            <div className="md:static sticky top-0 z-20 mb-4 -mx-4 px-4 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+                <div className="overflow-x-auto no-scrollbar -mx-1">
+                    <div className="inline-flex gap-2 border rounded-xl p-1 bg-white snap-x snap-mandatory">
+                        {TABS.map(t => (
+                            <button
+                                key={t.key}
+                                onClick={() => setTab(t.key)}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium snap-start ${tab === t.key ? 'bg-black text-white' : 'hover:bg-gray-100'
+                                    }`}
+                            >
+                                {t.label}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
