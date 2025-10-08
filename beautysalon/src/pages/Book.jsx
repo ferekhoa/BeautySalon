@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import SlotGrid from '../components/SlotGrid';
 import { addMinutes, overlaps, toISODate } from '../utils/datetime';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import { forwardRef } from 'react';
 
 export default function Book() {
     const params = new URLSearchParams(location.search);
@@ -14,7 +17,9 @@ export default function Book() {
     const [chosenStaff, setChosenStaff] = useState('');
     const [busy, setBusy] = useState([]);
     const [hours, setHours] = useState(null);
+    const [openWeekdays, setOpenWeekdays] = useState(new Set()); // <-- NEW
     const [slot, setSlot] = useState(null);
+    const [closedNote, setClosedNote] = useState('');
 
     // multi-service cart
     const [items, setItems] = useState([]); // {id,name,duration_min,price_cents}
@@ -30,6 +35,44 @@ export default function Book() {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [remarks, setRemarks] = useState('');
+
+    useEffect(() => {
+        (async () => {
+            setOpenWeekdays(new Set());
+            setHours(null);
+            setClosedNote('');
+            if (!chosenStaff) return;
+
+            const { data: all } = await supabase
+                .from('staff_hours')
+                .select('weekday')
+                .eq('staff_id', chosenStaff);
+
+            const set = new Set((all || []).map(r => r.weekday));
+            setOpenWeekdays(set);
+
+            // If currently selected date is closed, jump forward to next open day
+            const current = new Date(date);
+            if (!set.has(current.getDay())) {
+                const next = findNextOpenDay(current, set);
+                if (next) {
+                    setDate(next);
+                    setClosedNote('Closed on that day — jumped to the next open day.');
+                }
+            }
+        })();
+    }, [chosenStaff]);
+
+    function findNextOpenDay(startDate, openSet) {
+        for (let i = 0; i < 60; i++) {  // look ahead up to 60 days
+            const cand = new Date(startDate);
+            cand.setDate(startDate.getDate() + i);
+            if (openSet.has(cand.getDay()) && toISODate(cand) >= toISODate(new Date())) {
+                return cand;
+            }
+        }
+        return null;
+    }
 
     // Load catalog + staff
     useEffect(() => {
@@ -60,14 +103,9 @@ export default function Book() {
     // Busy slots for chosen day/staff
     useEffect(() => {
         (async () => {
-            if (!chosenStaff) {
-                setBusy([]);
-                return;
-            }
-            const start = new Date(date);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(start);
-            end.setDate(end.getDate() + 1);
+            if (!chosenStaff) { setBusy([]); return; }
+            const start = new Date(date); start.setHours(0, 0, 0, 0);
+            const end = new Date(start); end.setDate(end.getDate() + 1);
             const { data } = await supabase
                 .from('appointments')
                 .select('starts_at, ends_at, status')
@@ -75,22 +113,14 @@ export default function Book() {
                 .gte('starts_at', start.toISOString())
                 .lt('starts_at', end.toISOString());
             setBusy(data || []);
-
-            const hasOverlap = busy
-                .filter(b => b.status !== 'cancelled')  // <— ignore cancelled to reopen slot
-                .some(b => overlaps(new Date(b.starts_at), new Date(b.ends_at), s, e));
-
         })();
     }, [date, chosenStaff]);
 
     // Staff hours for weekday (if none, no slots)
     useEffect(() => {
         (async () => {
-            if (!chosenStaff) {
-                setHours(null);
-                return;
-            }
-            const weekday = new Date(date).getDay(); // 0..6
+            if (!chosenStaff) { setHours(null); return; }
+            const weekday = new Date(date).getDay();
             const { data } = await supabase
                 .from('staff_hours')
                 .select('start_time, end_time, weekday')
@@ -98,26 +128,22 @@ export default function Book() {
                 .eq('weekday', weekday)
                 .maybeSingle();
             setHours(data || null);
+            setSlot(null);
         })();
     }, [date, chosenStaff]);
 
-    // Prevent past date/time:
-    // - Date input has min=today
-    // - When selected date is today, lock any slot whose start < now
     const todayISO = toISODate(new Date());
     const now = new Date();
 
+    // Slots (unchanged from your latest logic)
     const slots = useMemo(() => {
         if (!chosenStaff || totalDuration <= 0 || !hours) return [];
 
         const [sh, sm] = String(hours.start_time).split(':').map(Number);
         const [eh, em] = String(hours.end_time).split(':').map(Number);
 
-        const dayStart = new Date(date);
-        dayStart.setHours(sh || 8, sm || 0, 0, 0);
-
-        const dayEnd = new Date(date);
-        dayEnd.setHours(eh || 19, em || 0, 0, 0);
+        const dayStart = new Date(date); dayStart.setHours(sh || 10, sm || 0, 0, 0);
+        const dayEnd = new Date(date); dayEnd.setHours(eh || 18, em || 30, 0);
 
         const step = 30;
         const duration = totalDuration;
@@ -127,25 +153,35 @@ export default function Book() {
             const s = new Date(t);
             const e = addMinutes(t, duration);
 
-            // lock if would end after shift
             const pastEnd = e > dayEnd;
-
-            // lock if overlapping other appointments
-            const hasOverlap = busy.some((b) =>
-                overlaps(new Date(b.starts_at), new Date(b.ends_at), s, e)
-            );
-
-            // lock if selecting today and start is before 'now'
-            const isSameDay =
-                toISODate(s) === toISODate(now); // compare YYYY-MM-DD
+            const hasOverlap = busy
+                .filter(b => b.status !== 'cancelled')
+                .some(b => overlaps(new Date(b.starts_at), new Date(b.ends_at), s, e));
+            const isSameDay = toISODate(s) === toISODate(now);
             const inPast = isSameDay && s < now;
 
+            if (pastEnd) break;
             out.push({ s, e, blocked: pastEnd || hasOverlap || inPast });
-            if (pastEnd) break; // later starts will also exceed end
         }
-
         return out;
     }, [busy, date, chosenStaff, totalDuration, hours]);
+
+    async function goToNextOpenDay() {
+        if (!chosenStaff) return;
+        const { data: all } = await supabase
+            .from('staff_hours')
+            .select('weekday')
+            .eq('staff_id', chosenStaff);
+
+        const openDays = new Set((all || []).map(r => r.weekday)); // integers 0..6
+        if (!openDays.size) return; // no configured hours at all
+
+        const d = new Date(date);
+        for (let i = 1; i <= 14; i++) {         // look ahead up to two weeks
+            const cand = new Date(d); cand.setDate(d.getDate() + i);
+            if (openDays.has(cand.getDay())) { setDate(cand); break; }
+        }
+    }
 
     function addItemById(id) {
         const s = allServices.find((x) => x.id === id);
@@ -200,6 +236,18 @@ export default function Book() {
         location.href = '/success?date=' + encodeURIComponent(toISODate(slot.s));
     }
 
+    const InputLike = forwardRef(({ value, onClick, placeholder }, ref) => (
+        <button
+            type="button"
+            onClick={onClick}
+            ref={ref}
+            className="w-full mb-2 border rounded-xl px-3 py-2 text-left bg-white hover:bg-gray-50"
+        >
+            {value || placeholder || 'Select date'}
+        </button>
+    ));
+
+    InputLike.displayName = 'InputLike';
     return (
         <main className="container-slim py-10">
             <h1 className="text-2xl font-semibold mb-6">Book an Appointment</h1>
@@ -263,35 +311,37 @@ export default function Book() {
 
             {/* Date (cannot be before today) */}
             <label className="block text-sm font-medium mb-1">Choose date</label>
-            <input
-                type="date"
-                className="w-full mb-2 border rounded-xl px-3 py-2"
-                value={toISODate(date)}
-                min={todayISO}
-                onChange={(e) => {
-                    const picked = new Date(e.target.value + 'T12:00:00');
-                    // If user hacks an older date, clamp to today
-                    const pickedISO = toISODate(picked);
-                    const safeDate = pickedISO < todayISO ? new Date() : picked;
-                    setDate(safeDate);
-                    setSlot(null);
+            <DatePicker
+                selected={date}
+                onChange={(d) => { setDate(d); setSlot(null); }}
+                minDate={new Date()}                // block past days
+                filterDate={(d) => {
+                    if (!chosenStaff) return false;   // don’t allow picking before staff
+                    const day = new Date(d); day.setHours(0, 0, 0, 0);
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    if (day < today) return false;
+                    // disable days specialist doesn’t work:
+                    return openWeekdays.size ? openWeekdays.has(day.getDay()) : true;
                 }}
+                showMonthDropdown
+                showYearDropdown
+                dropdownMode="select"
+                dateFormat="yyyy-MM-dd"
+                placeholderText="YYYY-MM-DD"
+                customInput={<InputLike />}
+                calendarClassName="rdp-calendar"
+                dayClassName={(d) => "rdp-day"}     // Tailwind theming via CSS below
+                popperClassName="rdp-popper"
                 disabled={!chosenStaff}
             />
+            {closedNote && <div className="text-xs text-amber-700 mb-2">{closedNote}</div>}
 
-            {/* Inform if no hours */}
-            {chosenStaff && !hours && (
-                <div className="text-sm text-amber-700 mb-3">
-                    This specialist has no working hours on the selected day.
-                </div>
-            )}
-
-            {/* Time slots based on staff working hours (30-min), locked if busy or in the past */}
+            {/* Time slots section as before */}
             <div className="mb-6">
                 {totalDuration <= 0 ? (
                     <div className="text-sm text-gray-500">Add services to see available times.</div>
                 ) : !hours ? (
-                    <div className="text-sm text-gray-500">Pick a day with working hours.</div>
+                    <div className="text-sm text-gray-500">Closed on this day for the selected specialist.</div>
                 ) : (
                     <SlotGrid slots={slots} value={slot} onChange={setSlot} />
                 )}

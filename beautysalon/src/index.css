@@ -35,3 +35,50 @@ body {
 .link {
   @apply underline underline-offset-4 hover:no-underline;
 }
+
+/* react-datepicker minimal theming to match your input/cards */
+.rdp-calendar {
+  border: 1px solid rgb(229 231 235);
+  /* border-gray-200 */
+  border-radius: 0.75rem;
+  /* rounded-xl */
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  font-family: inherit;
+}
+
+.react-datepicker__header {
+  background: white;
+  border-bottom: 1px solid rgb(229 231 235);
+}
+
+.react-datepicker__current-month,
+.react-datepicker__month-dropdown,
+.react-datepicker__year-dropdown,
+.react-datepicker__day-name {
+  color: rgb(75 85 99);
+  /* text-gray-600 */
+  font-size: 0.75rem;
+}
+
+.rdp-day.react-datepicker__day {
+  border-radius: 0.5rem;
+  /* rounded-lg */
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background: black !important;
+  color: white !important;
+}
+
+.react-datepicker__day--disabled {
+  color: rgb(209 213 219) !important;
+  /* text-gray-300 */
+  cursor: not-allowed !important;
+}
+
+.rdp-popper {
+  z-index: 50;
+  /* above cards/buttons */
+}
