@@ -14,7 +14,7 @@ export default function AppointmentsSection() {
         const [a, b, c] = await Promise.all([
             supabase
                 .from('appointments')
-                .select('id,service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,status,remarks')
+                .select('id,service_id,staff_id,customer_name,customer_phone,starts_at,ends_at,status,remarks,reminder_email_sent_at,reminder_sms_sent_at')
                 .order('starts_at', { ascending: false })
                 .limit(200),
             supabase.from('staff').select('id,full_name'),
@@ -54,6 +54,22 @@ export default function AppointmentsSection() {
         }
     }
 
+    function ReminderBadge({ emailAt, smsAt }) {
+        const hasEmail = !!emailAt;
+        const hasSms = !!smsAt;
+        if (!hasEmail && !hasSms) return <span className="badge">—</span>;
+
+        return (
+            <div className="flex gap-1 flex-wrap">
+                {hasEmail && (
+                    <span className="badge">Email {new Date(emailAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                )}
+                {hasSms && (
+                    <span className="badge">SMS {new Date(smsAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                )}
+            </div>
+        );
+    }
     return (
         <section>
             {/* Filter — stacks on mobile */}
@@ -103,6 +119,7 @@ export default function AppointmentsSection() {
                                     <th className="py-2 pr-3">Customer</th>
                                     <th className="py-2 pr-3">Status</th>
                                     <th className="py-2 pr-3">Remarks</th>
+                                    <th className="py-2 pr-3">Reminder</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -127,6 +144,9 @@ export default function AppointmentsSection() {
                                             </select>
                                         </td>
                                         <td className="py-2 pr-3">{r.remarks || ''}</td>
+                                        <td className="py-2 pr-3">
+                                            <ReminderBadge emailAt={r.reminder_email_sent_at} smsAt={r.reminder_sms_sent_at} />
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -175,6 +195,16 @@ function AppointmentCardMobile({ row, staff, services, onChangeStatus }) {
                     <option value="no_show">No Show</option>
                     <option value="cancelled">Cancelled</option>
                 </select>
+            </div>
+            <div className="mt-2 text-xs text-gray-600">
+                <span className="font-medium">Reminder:</span>{' '}
+                {row.reminder_email_sent_at || row.reminder_sms_sent_at ? (
+                    <>
+                        {row.reminder_email_sent_at && <>Email at {new Date(row.reminder_email_sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                        {row.reminder_email_sent_at && row.reminder_sms_sent_at && ' • '}
+                        {row.reminder_sms_sent_at && <>SMS at {new Date(row.reminder_sms_sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>}
+                    </>
+                ) : '—'}
             </div>
         </div>
     );

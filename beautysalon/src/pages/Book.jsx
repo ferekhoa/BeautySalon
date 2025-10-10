@@ -6,6 +6,7 @@ import { addMinutes, overlaps, toISODate } from '../utils/datetime';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { forwardRef } from 'react';
+import ConfirmModal from '../components/ConfirmModal';
 
 export default function Book() {
     const params = new URLSearchParams(location.search);
@@ -21,6 +22,7 @@ export default function Book() {
     const [openWeekdays, setOpenWeekdays] = useState(new Set()); // <-- NEW
     const [slot, setSlot] = useState(null);
     const [closedNote, setClosedNote] = useState('');
+    const [email, setEmail] = useState('');
 
     // multi-service cart
     const [items, setItems] = useState([]); // {id,name,duration_min,price_cents}
@@ -36,6 +38,15 @@ export default function Book() {
     const [name, setName] = useState('');
     const [phone, setPhone] = useState('');
     const [remarks, setRemarks] = useState('');
+
+    const [dlg, setDlg] = useState({
+        open: false,
+        title: '',
+        body: null,
+        confirmText: 'OK',
+        destructive: false,
+        onConfirm: null, // when null, acts like an info dialog
+    });
 
     useEffect(() => {
         (async () => {
@@ -193,28 +204,57 @@ export default function Book() {
         setItems((prev) => prev.filter((p) => p.id !== id));
     }
 
-    async function confirm() {
+    function infoDialog(title, body) {
+        setDlg({
+            open: true,
+            title,
+            body: typeof body === 'string' ? <p>{body}</p> : body,
+            confirmText: 'OK',
+            destructive: false,
+            onConfirm: null,
+        });
+    }
+
+    function confirmDialog({ title, body, confirmText = 'Confirm', destructive = false, onConfirm }) {
+        setDlg({
+            open: true,
+            title,
+            body: typeof body === 'string' ? <p>{body}</p> : body,
+            confirmText,
+            destructive,
+            onConfirm,
+        });
+    }
+
+    function isValidGmail(v) {
+        return /^[a-z0-9._%+\-]+@(gmail\.com|googlemail\.com)$/i.test(v || '');
+    }
+    function isLikelyLebanonPhone(v) {
+        const d = String(v || '').replace(/\D/g, '');
+        return /^(?:961)?(?:3\d|7\d|81)\d{6}$/.test(d) || /^0(?:3|7\d|81)\d{6}$/.test(d);
+    }
+
+    async function createAppointment() {
+        // your existing secure logic stays here
         const { data: can, error: canErr } = await supabase.rpc('can_book', { p_phone: phone });
-        if (canErr) return alert(canErr.message);
-        if (can === false) return alert('Your phone number has been blocked from booking due to repeated no-shows. Please contact the salon.');
+        if (canErr) return infoDialog('Booking Error', canErr.message);
+        if (can === false) return infoDialog('Blocked', 'Your phone number is blocked due to repeated no-shows.');
 
-        if (!items.length) return alert('Add at least one service');
-        if (!slot || !name || !phone) return alert('Fill all fields');
+        if (slot.s < new Date()) return infoDialog('Pick a future time', 'Please choose a time in the future.');
 
-        // Runtime safety: prevent booking in the past even if UI blocked it
-        if (slot.s < new Date()) {
-            return alert('Please choose a time in the future.');
-        }
+        // ensure customer (if you added ensure_customer as we discussed)
+        // If you haven't added email yet, skip this block or adapt it.
+        // const { data: customer_id, error: custErr } = await supabase.rpc('ensure_customer', { p_name: name, p_phone: phone, p_email: email });
+        // if (custErr) return infoDialog('Invalid details', custErr.message);
 
-        // Create appointment
         const { data: appt, error: e1 } = await supabase
             .from('appointments')
             .insert({
-                salon_id: null,
-                service_id: null,
                 staff_id: chosenStaff,
                 customer_name: name,
                 customer_phone: phone,
+                customer_email: email,
+                // customer_id, // if using ensure_customer
                 starts_at: slot.s.toISOString(),
                 ends_at: slot.e.toISOString(),
                 status: 'booked',
@@ -222,19 +262,63 @@ export default function Book() {
             })
             .select('id')
             .single();
-        if (e1) return alert(e1.message);
+        if (e1) return infoDialog('Booking Error', e1.message);
 
-        // Insert appointment items
-        const payload = items.map((s) => ({
+        const payload = items.map(s => ({
             appointment_id: appt.id,
             service_id: s.id,
             duration_min: s.duration_min,
             price_cents: s.price_cents,
         }));
         const { error: e2 } = await supabase.from('appointment_items').insert(payload);
-        if (e2) return alert(e2.message);
+        if (e2) return infoDialog('Booking Error', e2.message);
+
+        // optional remember-me
+        // localStorage.setItem('booking_identity', JSON.stringify({ name, phone, email }));
 
         location.href = '/success?date=' + encodeURIComponent(toISODate(slot.s));
+    }
+
+    async function confirm() {
+        // client-side checks → show pretty info dialogs instead of alert()
+        if (!items.length) return infoDialog('Add a service', 'Please add at least one service to continue.');
+        if (!slot || !name || !phone || !email) return infoDialog('Missing info', 'Please fill your name, phone, email and choose a time.');
+        if (!isLikelyLebanonPhone(phone)) return infoDialog('Invalid phone', 'Please enter a valid Lebanese mobile number.');
+        if (!isValidGmail(email)) return infoDialog('Invalid email', 'Please enter a valid Gmail address (gmail.com).');
+        // if you added email on the page:
+        // if (!email || !isValidGmail(email)) return infoDialog('Invalid email', 'Please enter a valid Gmail address.');
+
+        // open a stylish confirmation
+        const summary = (
+            <div className="text-sm">
+                <div className="mb-2"><span className="font-medium">Name:</span> {name}</div>
+                <div className="mb-2"><span className="font-medium">Phone:</span> {phone}</div>
+                {/* <div className="mb-2"><span className="font-medium">Email:</span> {email}</div> */}
+                <div className="mb-2">
+                    <span className="font-medium">When:</span>{' '}
+                    {slot.s.toLocaleDateString()} • {slot.s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {' - '}
+                    {slot.e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <div className="mb-2"><span className="font-medium">Services:</span></div>
+                <ul className="list-disc pl-5 mb-2">
+                    {items.map(it => (
+                        <li key={it.id}>{it.name} — {it.duration_min} min • ${(it.price_cents / 100).toFixed(2)}</li>
+                    ))}
+                </ul>
+                <div className="font-semibold">Total: {totalDuration} min • ${(totalPrice / 100).toFixed(2)}</div>
+            </div>
+        );
+
+        confirmDialog({
+            title: 'Confirm booking?',
+            body: summary,
+            confirmText: 'Confirm Booking',
+            onConfirm: async () => {
+                setDlg(d => ({ ...d, open: false }));
+                await createAppointment();
+            },
+        });
     }
 
     const InputLike = forwardRef(({ value, onClick, placeholder }, ref) => (
@@ -249,6 +333,27 @@ export default function Book() {
     ));
 
     InputLike.displayName = 'InputLike';
+
+    function isValidGmail(v) {
+        return /^[a-z0-9._%+\-]+@(gmail\.com|googlemail\.com)$/i.test(v || '');
+    }
+    function isLikelyLebanonPhone(v) {
+        // quick client check; server does the final say
+        const d = String(v || '').replace(/\D/g, '');
+        return /^(?:961)?(?:3\d|7\d|81)\d{6}$/.test(d) || /^0(?:3|7\d|81)\d{6}$/.test(d);
+    }
+
+    useEffect(() => {
+        const saved = localStorage.getItem('booking_identity');
+        if (saved) {
+            try {
+                const { name: n, phone: p, email: e } = JSON.parse(saved);
+                if (n) setName(n);
+                if (p) setPhone(p);
+                if (e) setEmail(e);
+            } catch { }
+        }
+    }, []);
     return (
         <main className="container-slim py-10">
             <h1 className="text-2xl font-semibold mb-6">Book an Appointment</h1>
@@ -363,9 +468,15 @@ export default function Book() {
                 />
                 <input
                     className="border rounded-xl px-3 py-2"
-                    placeholder="Phone"
+                    placeholder="Phone (e.g. 03xxxxxx)"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                />
+                <input
+                    className="border rounded-xl px-3 py-2"
+                    placeholder="Email (Gmail only)"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                 />
             </div>
             <textarea
@@ -383,6 +494,16 @@ export default function Book() {
             >
                 Confirm Booking
             </button>
+            <ConfirmModal
+                open={dlg.open}
+                onClose={() => setDlg(d => ({ ...d, open: false }))}
+                onConfirm={dlg.onConfirm ? dlg.onConfirm : () => setDlg(d => ({ ...d, open: false }))}
+                title={dlg.title}
+                confirmText={dlg.confirmText}
+                destructive={dlg.destructive}
+            >
+                {dlg.body}
+            </ConfirmModal>
         </main>
     );
 }
@@ -458,5 +579,7 @@ function ServiceDropdown({ services = [], onPick }) {
                 </div>
             )}
         </div>
+
     );
+
 }
