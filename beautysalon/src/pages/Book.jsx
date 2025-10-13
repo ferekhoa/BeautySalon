@@ -235,65 +235,84 @@ export default function Book() {
     }
 
     async function createAppointment() {
-        // your existing secure logic stays here
+        // 1) Server-side check (your existing RPC)
         const { data: can, error: canErr } = await supabase.rpc('can_book', { p_phone: phone });
         if (canErr) return infoDialog('Booking Error', canErr.message);
         if (can === false) return infoDialog('Blocked', 'Your phone number is blocked due to repeated no-shows.');
 
+        if (!slot) return infoDialog('Pick a time', 'Please choose a time slot.');
         if (slot.s < new Date()) return infoDialog('Pick a future time', 'Please choose a time in the future.');
 
-        // ensure customer (if you added ensure_customer as we discussed)
-        // If you haven't added email yet, skip this block or adapt it.
-        // const { data: customer_id, error: custErr } = await supabase.rpc('ensure_customer', { p_name: name, p_phone: phone, p_email: email });
-        // if (custErr) return infoDialog('Invalid details', custErr.message);
+        // 2) Compute times
+        const startISO = slot.s.toISOString();
+        const endISO = slot.e.toISOString();
 
+        // 3) For backward-compatibility: store a primary service_id as the first selected service (if any)
+        const primaryServiceId = items[0]?.id ?? null;
+
+        // 4) Insert the appointment (use your existing separate states)
         const { data: appt, error: e1 } = await supabase
             .from('appointments')
             .insert({
+                service_id: primaryServiceId,     // if your schema requires; otherwise keep null
                 staff_id: chosenStaff,
-                customer_name: name,
-                customer_phone: phone,
-                customer_email: email,
-                // customer_id, // if using ensure_customer
-                starts_at: slot.s.toISOString(),
-                ends_at: slot.e.toISOString(),
+                customer_name: name?.trim() || null,
+                customer_phone: phone?.trim() || null,
+                customer_email: email?.trim() || null,
+                starts_at: startISO,
+                ends_at: endISO,
                 status: 'booked',
-                remarks: remarks || '',
+                remarks: remarks?.trim() || null,
             })
             .select('id')
             .single();
         if (e1) return infoDialog('Booking Error', e1.message);
 
-        const payload = items.map(s => ({
-            appointment_id: appt.id,
-            service_id: s.id,
-            duration_min: s.duration_min,
-            price_cents: s.price_cents,
-        }));
-        const { error: e2 } = await supabase.from('appointment_items').insert(payload);
-        if (e2) return infoDialog('Booking Error', e2.message);
+        // 5) Insert all appointment items (for multi-service cart)
+        if (items.length) {
+            const payload = items.map(s => ({
+                appointment_id: appt.id,
+                service_id: s.id,
+                duration_min: s.duration_min,
+                price_cents: s.price_cents,
+            }));
+            const { error: e2 } = await supabase.from('appointment_items').insert(payload);
+            if (e2) return infoDialog('Booking Error', e2.message);
+        }
 
-        // optional remember-me
+        // 6) (Optional) Remember user identity
         // localStorage.setItem('booking_identity', JSON.stringify({ name, phone, email }));
 
-        location.href = '/success?date=' + encodeURIComponent(toISODate(slot.s));
+        // 7) Redirect to Success with enough info to compose email
+        const startLabel = slot.s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const endLabel = slot.e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const dateISO = toISODate(slot.s);
+
+        const staffName = (staff.find(st => st.id === chosenStaff)?.full_name) || '';
+        const serviceNames = items.map(i => i.name).join(', ');
+
+        location.href =
+            '/success?date=' + encodeURIComponent(dateISO) +
+            '&start=' + encodeURIComponent(startLabel) +
+            '&end=' + encodeURIComponent(endLabel) +
+            '&email=' + encodeURIComponent(email || '') +
+            '&service=' + encodeURIComponent(serviceNames) +
+            '&staff=' + encodeURIComponent(staffName) +
+            '&id=' + encodeURIComponent(appt.id); // optional
     }
 
+
     async function confirm() {
-        // client-side checks → show pretty info dialogs instead of alert()
         if (!items.length) return infoDialog('Add a service', 'Please add at least one service to continue.');
         if (!slot || !name || !phone || !email) return infoDialog('Missing info', 'Please fill your name, phone, email and choose a time.');
         if (!isLikelyLebanonPhone(phone)) return infoDialog('Invalid phone', 'Please enter a valid Lebanese mobile number.');
         if (!isValidGmail(email)) return infoDialog('Invalid email', 'Please enter a valid Gmail address (gmail.com).');
-        // if you added email on the page:
-        // if (!email || !isValidGmail(email)) return infoDialog('Invalid email', 'Please enter a valid Gmail address.');
 
-        // open a stylish confirmation
         const summary = (
             <div className="text-sm">
                 <div className="mb-2"><span className="font-medium">Name:</span> {name}</div>
                 <div className="mb-2"><span className="font-medium">Phone:</span> {phone}</div>
-                {/* <div className="mb-2"><span className="font-medium">Email:</span> {email}</div> */}
+                <div className="mb-2"><span className="font-medium">Email:</span> {email}</div>
                 <div className="mb-2">
                     <span className="font-medium">When:</span>{' '}
                     {slot.s.toLocaleDateString()} • {slot.s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -321,6 +340,7 @@ export default function Book() {
         });
     }
 
+
     const InputLike = forwardRef(({ value, onClick, placeholder }, ref) => (
         <button
             type="button"
@@ -334,14 +354,14 @@ export default function Book() {
 
     InputLike.displayName = 'InputLike';
 
-    function isValidGmail(v) {
-        return /^[a-z0-9._%+\-]+@(gmail\.com|googlemail\.com)$/i.test(v || '');
-    }
-    function isLikelyLebanonPhone(v) {
-        // quick client check; server does the final say
-        const d = String(v || '').replace(/\D/g, '');
-        return /^(?:961)?(?:3\d|7\d|81)\d{6}$/.test(d) || /^0(?:3|7\d|81)\d{6}$/.test(d);
-    }
+    // function isValidGmail(v) {
+    //     return /^[a-z0-9._%+\-]+@(gmail\.com|googlemail\.com)$/i.test(v || '');
+    // }
+    // function isLikelyLebanonPhone(v) {
+    //     // quick client check; server does the final say
+    //     const d = String(v || '').replace(/\D/g, '');
+    //     return /^(?:961)?(?:3\d|7\d|81)\d{6}$/.test(d) || /^0(?:3|7\d|81)\d{6}$/.test(d);
+    // }
 
     useEffect(() => {
         const saved = localStorage.getItem('booking_identity');
@@ -473,8 +493,10 @@ export default function Book() {
                     onChange={(e) => setPhone(e.target.value)}
                 />
                 <input
-                    className="border rounded-xl px-3 py-2"
-                    placeholder="Email (Gmail only)"
+                    type="email"
+                    required
+                    className="border rounded-xl px-3 py-2 w-full"
+                    placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                 />

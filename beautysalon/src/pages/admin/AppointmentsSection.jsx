@@ -70,6 +70,52 @@ export default function AppointmentsSection() {
             </div>
         );
     }
+    function buildWhenLabel(startsAt, endsAt) {
+        const s = new Date(startsAt);
+        const e = new Date(endsAt);
+        const day = s.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+        const sHM = s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const eHM = e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${day} at ${sHM}–${eHM}`;
+    }
+
+    function mailtoForRow(row, serviceName, staffName, opts = {}) {
+        const {
+            salonName = "Beauty Salon",
+            salonPhone = "+961 70 000 000",
+            salonAddress = "Hamra, Beirut",
+            cc,
+            bcc,
+        } = opts;
+
+        const whenLabel = buildWhenLabel(row.starts_at, row.ends_at);
+        const subject = `${salonName} – Your appointment on ${whenLabel}`;
+        const body = [
+            `Hi ${row.customer_name || ''},`,
+            ``,
+            `This is your booking confirmation at ${salonName}.`,
+            serviceName ? `Service: ${serviceName}` : null,
+            staffName ? `Staff: ${staffName}` : null,
+            `When: ${whenLabel}`,
+            ``,
+            `Location: ${salonAddress}`,
+            `Phone: ${salonPhone}`,
+            ``,
+            `Need to reschedule? Just reply to this email.`,
+            ``,
+            `See you soon,`,
+            `${salonName}`,
+        ].filter(Boolean).join('\n');
+
+        const params = new URLSearchParams();
+        if (cc) params.set("cc", cc);
+        if (bcc) params.set("bcc", bcc);
+        params.set("subject", subject);
+        params.set("body", body);
+
+        return `mailto:${encodeURIComponent(row.customer_email || "")}?${params.toString()}`;
+    }
+
     return (
         <section>
             {/* Filter — stacks on mobile */}
@@ -120,6 +166,7 @@ export default function AppointmentsSection() {
                                     <th className="py-2 pr-3">Status</th>
                                     <th className="py-2 pr-3">Remarks</th>
                                     <th className="py-2 pr-3">Reminder</th>
+                                    <th className="py-2 pr-3">Email</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -146,6 +193,25 @@ export default function AppointmentsSection() {
                                         <td className="py-2 pr-3">{r.remarks || ''}</td>
                                         <td className="py-2 pr-3">
                                             <ReminderBadge emailAt={r.reminder_email_sent_at} smsAt={r.reminder_sms_sent_at} />
+                                        </td>
+                                        <td className="py-2 pr-3">
+                                            {r.customer_email ? (
+                                                <a
+                                                    href={mailtoForRow(
+                                                        r,
+                                                        services.find(s => s.id === r.service_id)?.name || '',
+                                                        staff.find(s => s.id === r.staff_id)?.full_name || '',
+                                                        // Optional: auto-BCC the owner
+                                                        { bcc: "owner@example.com" }
+                                                    )}
+                                                    className="link"
+                                                    title="Compose confirmation email"
+                                                >
+                                                    Compose
+                                                </a>
+                                            ) : (
+                                                <span className="text-gray-400">—</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
