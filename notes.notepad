@@ -1,0 +1,4 @@
+curl -sS -X POST https://api.resend.com/emails \
+  -H "Authorization: Bearer re_fBs73QGD_4WR8XJ7YtLA8DXnqHXgaUCLw" \
+  -H "Content-Type: application/json" \
+  -d "{\"from\":\"Booking <booking@ferekhoa.shop>\",\"to\":[\"ferekhoa@gmail.com\"],\"subject\":\"Hello from Resend\",\"html\":\"<p>Test email successfully sent 🚀</p>\"}"

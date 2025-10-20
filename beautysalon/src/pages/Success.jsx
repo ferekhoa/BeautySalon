@@ -1,3 +1,4 @@
+// src/pages/Success.jsx
 import { useMemo } from 'react';
 import { buildConfirmationEmail } from '../utils/email';
 

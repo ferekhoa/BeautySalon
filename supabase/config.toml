@@ -1,5 +1,0 @@
-[functions."remind_appointments"]
-verify_jwt = false
-
-[functions."remind_appointments".schedule]
-cron = "*/5 * * * *"   # every 5 minutes

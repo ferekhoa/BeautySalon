@@ -1,3 +1,4 @@
+// src/utils/email.js
 export function buildConfirmationEmail({ to, salonName = "Beauty Salon", salonPhone = "+961 70 000 000", salonAddress = "Hamra, Beirut", whenLabel, serviceName, staffName }) {
     const subject = `${salonName} – Your appointment on ${whenLabel}`;
     const lines = [

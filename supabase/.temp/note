@@ -1,0 +1,8 @@
+supabase secrets set \
+  SUPABASE_URL="https://marghqsbgroggvbedumu.supabase.co" \
+SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hcmdocXNiZ3JvZ2d2YmVkdW11Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1OTgwNDA2OCwiZXhwIjoyMDc1MzgwMDY4fQ.4bIR26nGUjy60tBXimMswAu3PFa1tNkw7cOJ8WHzy7k" \
+  RESEND_API_KEY="re_fBs73QGD_4WR8XJ7YtLA8DXnqHXgaUCLw" \
+  REMINDER_FROM="BeautySalon <Booking@beautysalon.com>" \
+  SALON_NAME="Beauty Salon" \
+  SALON_PHONE="+961 71 249 490" \
+  SALON_ADDRESS="Hamra, Beirut"

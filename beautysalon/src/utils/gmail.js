@@ -1,3 +1,4 @@
+// src/utils/gmail.js
 export function gmailComposeURL({ to, subject, body, bcc }) {
     const p = new URLSearchParams();
     if (to) p.set("to", to);

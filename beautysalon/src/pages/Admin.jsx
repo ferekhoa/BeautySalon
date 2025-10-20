@@ -1,3 +1,4 @@
+// src/pages/Admin.jsx
 import { useState } from 'react';
 import CategoriesSection from './admin/CategoriesSection';
 import ServicesSection from './admin/ServicesSection';

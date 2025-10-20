@@ -1,3 +1,4 @@
+// src/components/SlotGrid.jsx
 import { fmtTime } from '../utils/datetime';
 
 /**
